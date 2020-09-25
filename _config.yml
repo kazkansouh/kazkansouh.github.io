@@ -1,0 +1,45 @@
+title: >
+  Just another InfoSec site :tada:
+email: kaz.kanso@gmail.com
+description: >-
+  A collection of pentesting cheatsheets and other (possibly)
+  interesting stuff.
+baseurl: "" # the subpath of your site, e.g. /blog
+url: "" # the base hostname & protocol for your site, e.g. http://example.com
+github_username:  kazkansouh
+
+# Build settings
+markdown: kramdown
+remote_theme: kazkansouh/bulma-clean-theme@toc-updates
+plugins:
+  - jekyll-feed
+  - jekyll-remote-theme
+  - jemoji
+
+
+# theme specific settings
+
+#paginate: 5
+#paginate_path: "/blog/page:num"
+
+hide_share_buttons: true
+toc_min: 1
+
+defaults:
+  -
+    scope:
+      path: cheatsheets
+      type: pages
+    values:
+      layout: cheatsheet
+      subtitle: >
+        Cheatsheet
+        <span class="attacker">
+          <span class="subtitle attacker lhost">
+            LHOST:<input type="text" id="lhost" class="subtitle" size="12" oninput="updateCheatSheet()">
+          </span>
+          <span class="subtitle attacker svrport">
+            SVRPORT:<input type="number" min="1" max="65535" id="svrport" class="subtitle" size="5" oninput="updateCheatSheet()">
+          </span>
+        </span>
+      hero_height: is-small

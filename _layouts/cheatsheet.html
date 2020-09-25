@@ -1,0 +1,145 @@
+---
+layout: page
+---
+
+{{ content }}
+
+<div id="warning-server-modified" class="notification is-primary is-light hidden">
+  The server copy of this file has been updated.
+  <button class="is-light" onclick="computeDiff(diff_server,server_cheatsheet,true)">Toggle Diff</button>
+  <div class="cheat hidden diff" id="diff-server"></div>
+</div>
+
+<div id="warning-local-modified" class="notification is-primary is-light hidden">
+  Caution, this file has been modified locally.
+  <button class="is-light" onclick="revertModify()">Revert</button>
+  <button class="is-light" onclick="copyModify()">Copy</button>
+  <button class="is-light" onclick="computeDiff(diff_local,window.localStorage.getItem`{{page.title}}cheatsheet`,true)">Toggle Diff</button>
+  <div class="cheat hidden diff" id="diff-local"></div>
+</div>
+
+<div id="cheatsheet" class="cheat" role="textbox" contenteditable oninput="updateModify()">
+ loading ...
+</div>
+
+<script type="text/javascript">
+  const lhost = document.getElementById`lhost`
+  const svrport = document.getElementById`svrport`
+  const modified_local = document.getElementById`warning-local-modified`;
+  const modified_server = document.getElementById`warning-server-modified`;
+  const diff_local = document.getElementById`diff-local`;
+  const diff_server = document.getElementById`diff-server`;
+  const cheatsheet = document.getElementById`cheatsheet`;
+  cheatsheet.addEventListener('keydown', e => {
+      // dirty hack to prevent browser generating spurious newlines
+      if (e.which == 13) {
+          e.stopPropagation();
+          e.preventDefault();
+          document.execCommand('insertHTML', false, '<br />');
+      }
+  });
+  var server_cheatsheet = '';
+  function patch(s) {
+      return s.
+          replaceAll('10.10.10.1', lhost.lhost()).
+          replaceAll('4444', lhost.lport()).
+          replaceAll('8080', svrport.value);
+  }
+  function unpatch(s) {
+      return s.
+          replaceAll(lhost.lhost(), '10.10.10.1').
+          replaceAll(lhost.lport(), '4444').
+          replaceAll(svrport.value, '8080');
+  }
+  function updateCheatSheet(cs) {
+      var template = cs || window.localStorage.getItem`{{page.title}}cheatsheet`;
+      cheatsheet.innerText = patch(template);
+      window.localStorage.setItem('lhost', lhost.value)
+      window.localStorage.setItem('svrport', svrport.value)
+  }
+  function updateModify() {
+      var normal = unpatch(cheatsheet.innerText);
+      if (normal === window.localStorage.getItem`{{page.title}}cheatsheet`) {
+          modified_local.classList.add`invisible`;
+          window.localStorage.removeItem`{{page.title}}modified`;
+          diff_local.classList.add`hidden`;
+          document.querySelectorAll('.attacker > input').forEach(e => {e.disabled = false;})
+      } else {
+          modified_local.classList.remove('hidden', 'invisible');
+          window.localStorage.setItem('{{page.title}}modified', normal);
+          document.querySelectorAll('.attacker > input').forEach(e => {e.disabled = true;})
+          computeDiff(diff_local,window.localStorage.getItem`{{page.title}}cheatsheet`)
+          computeDiff(diff_server,server_cheatsheet)
+      }
+  }
+  function revertModify() {
+      if (confirm('Clear local changes?')) {
+          window.localStorage.removeItem`{{page.title}}modified`;
+          document.querySelectorAll('div.diff,.notification').forEach(e => {e.classList.add`hidden`;})
+          document.querySelectorAll('.attacker > input').forEach(e => {e.disabled = false;})
+          refreshServer();
+      }
+  }
+  function computeDiff(container, original, toggle) {
+      if (toggle) {
+          container.classList.toggle`hidden`;
+      }
+      if (container.classList.contains`hidden`) {
+          return;
+      }
+      var normal = unpatch(cheatsheet.innerText);
+      container.textContent = '';
+      Diff.diffChars(original, normal).forEach(p => {
+          const cls = p.added ? 'added' : (p.removed ? 'removed' : 'normal');
+          span = document.createElement('span');
+          span.classList.add(cls);
+          span.appendChild(document.createTextNode(p.value.replaceAll('\n', '↲\n').replaceAll(' ', '␣')));
+          container.appendChild(span);
+      });
+      container.innerHTML = patch(container.innerHTML);
+  }
+  function copyModify() {
+      const ta = document.createElement('textarea');
+      ta.value = window.localStorage.getItem`{{page.title}}modified`;
+      ta.setAttribute('readonly', '');
+      ta.style.position = 'absolute';
+      ta.style.left = '-9999px';
+      document.body.appendChild(ta);
+      ta.select();
+      ta.setSelectionRange(0, 99999);
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      alert('copied');
+  }
+  function refreshServer() {
+      var oReq = new XMLHttpRequest();
+      oReq.onload = e => {
+          var updated = oReq.responseText;
+          if (window.localStorage.getItem`{{page.title}}modified` === updated) {
+              window.localStorage.removeItem`{{page.title}}modified`;
+          }
+          updateCheatSheet(window.localStorage.getItem`{{page.title}}modified` || updated);
+          if (window.localStorage.getItem`{{page.title}}modified`) {
+              modified_local.classList.remove`hidden`;
+              document.querySelectorAll('.attacker > input').forEach(e => {e.disabled = true;})
+              if (updated !== window.localStorage.getItem`{{page.title}}cheatsheet`) {
+                  server_cheatsheet = updated;
+                  modified_server.classList.remove`hidden`;
+              }
+              updateModify();
+          } else {
+              window.localStorage.setItem('{{page.title}}cheatsheet', updated);
+          }
+      };
+      oReq.open('GET', '{{page.cheatsheet_url}}');
+      oReq.send();
+  }
+  lhost.value = window.localStorage.getItem`lhost` || '10.10.10.1:4444';
+  lhost.lhost = () => {return lhost.value.split(':',2)[0] || '10.10.10.1'}
+  lhost.lport = () => {return lhost.value.split(':',2)[1] || '4444'}
+  svrport.value = window.localStorage.getItem`svrport` || '8080';
+
+  refreshServer();
+</script>
+<script type="text/javascript" src="{{ site.baseurl }}/assets/js/diff.min.js"></script>
+<link rel="stylesheet" href="{{ site.baseurl }}/assets/css/cheat.css">

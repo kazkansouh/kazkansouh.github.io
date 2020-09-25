@@ -1,0 +1,13 @@
+- name: Cheatsheets
+  link: /cheatsheets/
+  dropdown:
+    - name: Windows
+      link: /cheatsheets/windows/
+    - name: Linux
+      link: /cheatsheets/linux/
+    - name: LFI PHP
+      link: /cheatsheets/lfi/
+    - name: Mimikatz
+      link: /cheatsheets/mimikatz/
+- name: Technical Posts
+  link: /walkthrough/

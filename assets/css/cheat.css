@@ -1,0 +1,60 @@
+.cheat {
+    display: block;
+    font-family: monospace;
+    white-space: pre-wrap;
+    margin: 1em 0;
+    width: 100%;
+    border: none;
+    font-weight: bold;
+    line-height: 20px;
+    overflow: auto;
+    padding: 5px;
+    max-height: calc(100vh - 5em);
+}
+.content > .cheat {
+    background-color: whitesmoke;
+}
+
+.attacker {
+    margin-left: 2em;
+    float: right;
+    display: block;
+}
+
+.attacker input {
+    background: transparent;
+    color: wheat;
+    border: 2px solid wheat;
+    border-radius: 4px;
+    padding: 5px;
+    margin-left: 0.25em;
+}
+
+.hidden {
+    display: none;
+}
+
+.invisible {
+    visibility: hidden;
+}
+
+div.notification button {
+    float: right;
+    margin-left: 1em;
+}
+
+div.diff {
+    max-height: calc(100vh - 8em);
+}
+
+span.added {
+    color: lightseagreen;
+}
+span.removed {
+    color: darkred;
+}
+
+span.normal {
+    color: lightsteelblue;
+    font-weight: normal;
+}
